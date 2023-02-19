@@ -11,6 +11,7 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <ctype.h>
+#include <dirent.h>
 #include "editor.h"
 
 // Shell builtin commands.

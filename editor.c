@@ -70,6 +70,7 @@ bool editorProcessKeypress(char** command, bool monitor_f)
 
     if (monitor_f)
     {
+        // Handle keypresses when a process is running.
         switch(c)
         {
             case CTRL_KEY('c'):
@@ -89,6 +90,8 @@ bool editorProcessKeypress(char** command, bool monitor_f)
     }
     else
     {
+        // Handle keypresses there are no processes running, or there are, but they
+        // are stopped.
         switch (c)
         {
             case '\r':
@@ -126,6 +129,13 @@ bool editorProcessKeypress(char** command, bool monitor_f)
                     printf("\n[%d] %s\n", process_idx, "Program Resumed!");
                     break;
                 }
+
+            case CTRL_KEY('i'):
+            {
+                editorTabComplete(command);
+                break;
+            }
+
             default:
                 if (!iscntrl(c))
                 {
@@ -151,6 +161,8 @@ int editorReadKey(void)
         }
     }
 
+    // This monitors if the character is an escape sequence,
+    // like the left arrow for example "\x1b[D".
     if (c == '\x1b')
     {
         char seq[3];
@@ -378,4 +390,52 @@ void editorGetHistoryCommand(char* command, int arrow)
     free(tmp);
     editor_state.x = strlen(editor_state.cwd) + strlen(PROMPT) + strlen(command) + 1;
     return;
+}
+
+void editorTabComplete(char** command)
+{
+    char* str;
+    char* command_sep;
+    char* last_arg;
+    char* last_file;
+
+    command_sep = strdup(*command);
+    last_arg = strrchr(command_sep, ' ');
+    if (last_arg == NULL)
+    {
+        last_arg = command_sep;
+    }
+
+    last_file = strrchr(last_arg, '/');
+    if(last_file == NULL)
+    {
+        last_file = last_arg;
+    }
+
+    if (last_file[0] == ' ' || last_file[0] == '/')
+    {
+        memmove(last_file, last_file + 1, strlen(last_file));
+    }
+
+    if (last_file[0] == '.' || last_file[1] == '/')
+    {
+        memmove(last_file, last_file + 2, strlen(last_file));
+    }
+
+    DIR *d;
+    struct dirent *dir;
+    d = opendir(".");
+    if (d) 
+    {
+        while ((dir = readdir(d)) != NULL)
+        {
+            if (strncmp(last_file, dir->d_name, strlen(last_file)) == 0)
+            {
+                strcpy(*command, dir->d_name);
+                editor_state.x = strlen(editor_state.cwd) + strlen(PROMPT) + strlen(*command) + 1;
+                break;
+            }
+        }
+        closedir(d);
+    }
 }

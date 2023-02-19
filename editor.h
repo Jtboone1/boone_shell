@@ -42,8 +42,9 @@ void editorRefreshScreen(char* command);
 void editorMoveCursor(int c, char* command);
 void editorAddCharacter(char** command, int c);
 void editorDeleteCharacter(char** command, bool is_del);
-void editorGetHistoryCommand(char* command, int arrow);
 bool editorProcessKeypress(char** command, bool monitor_f);
+void editorGetHistoryCommand(char* command, int arrow);
+void editorTabComplete(char** command);
 int editorReadKey(void);
 
 #endif

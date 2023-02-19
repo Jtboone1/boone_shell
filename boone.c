@@ -114,7 +114,7 @@ char** read_user_line(void)
             {
                 int code = WTERMSIG(status);
                 status = -1;
-                printf("Exited with status code: %d\n", code);
+                printf("Signaled with status code: %d\n", code);
             }
 
             editorRefreshScreen(line);
@@ -197,10 +197,10 @@ int execute_process(char** user_args)
     switch(child_pid)
     {
         case 0: 
-            size_t len = sizeof(user_args) / sizeof(user_args[0]);
             if (execvp(user_args[0], user_args) < 1)
             {
                 perror("Error executing program! ");
+                return 1;
             }
             break;
 
@@ -247,7 +247,10 @@ int main(int argc, char* argv[])
 
         if (user_args != NULL)
         {
-            execute_process(user_args);
+            if (execute_process(user_args) == 1)
+            {
+                return 1;
+            }
         }
     }
 
