@@ -1,6 +1,6 @@
 #include "boone.h"
 
-pid_t child_pid = -100;
+pid_t child_pid = NO_CHILD_PID;
 bool is_suspended = false;
 int process_ids[1024];
 int process_idx = 0;
@@ -23,7 +23,7 @@ int shell_exit(char** args)
     sprintf(cursor, "\x1b[%d;1H", editor_state.y);
     printf("%s\n", cursor);
 
-    exit(0);
+    return 1;
 }
 
 int shell_cd(char **args)
@@ -41,7 +41,7 @@ int shell_cd(char **args)
     }
 
     editor_state.cwd = getcwd(NULL, 0);
-    return 1;
+    return 0;
 }
 
 int shell_history(char** args)
@@ -50,7 +50,6 @@ int shell_history(char** args)
     if (file == NULL)
     {
         perror("Could not open history file! ");
-        return -1;
     }
 
     int line_num = 0;
@@ -65,7 +64,7 @@ int shell_history(char** args)
     fclose(file);
     printf("%s", "\n");
 
-    return 1;
+    return 0;
 }
 
 size_t shell_commands_size(void) 
@@ -76,13 +75,10 @@ size_t shell_commands_size(void)
 char** read_user_line(void)
 {
     FILE* fd;
-    size_t buffer_size = 0;
-    size_t idx = 0;
     int user_arg_size = USER_ARG_SIZE;
 
-    char* empty = "";
     char* line = malloc(1); 
-    strcpy(line, empty);
+    strcpy(line, "");
 
     editor_state.cwd = getcwd(NULL, 0);
     int len = strlen(editor_state.cwd) + strlen(PROMPT);
@@ -90,27 +86,23 @@ char** read_user_line(void)
     // Initialize command line state
     editor_state.x = len + 1;
     editor_state.cwd_str_len = len + 1;
-
-    char* token = "";
-    char** tokens = malloc(user_arg_size * sizeof(char*));
-    int previous_sig = 0;
     
     bool enter_pressed = false;
     do
     {
         int status;
-        if (child_pid == -100 || waitpid(child_pid, &status, WNOHANG) != 0 || is_suspended)
+        if (child_pid == NO_CHILD_PID || waitpid(child_pid, &status, WNOHANG) != 0 || is_suspended)
         {
             enableRawMode();
 
-            if ( child_pid != -100 && WIFEXITED(status) )
+            if ( child_pid != NO_CHILD_PID && WIFEXITED(status) )
             {
                 int code = WEXITSTATUS(status);
                 status = -1;
                 printf("Exited with status code: %d\n", code);
             }
 
-            if ( child_pid != -100 && WIFSIGNALED(status) )
+            if ( child_pid != NO_CHILD_PID && WIFSIGNALED(status) )
             {
                 int code = WTERMSIG(status);
                 status = -1;
@@ -133,7 +125,16 @@ char** read_user_line(void)
     printf("%s\n", cursor);
 
     // If no arguments provided we just signal by returning NULL.
-    if (strcmp(line, "") == 0)
+    bool has_args = false;
+    for (int i = 0; i < strlen(line); i++)
+    {
+        if (line[i] != ' ')
+        {
+            has_args = true;
+            break;
+        }
+    }
+    if (!has_args)
     {
         return NULL;
     }
@@ -152,28 +153,8 @@ char** read_user_line(void)
     editor_state.history_max++;
     editor_state.history_pos = editor_state.history_max;
     fclose(fd);
-
-    token = strtok(line, DELIMETERS);
-    while (token != NULL)
-    {
-        tokens[idx] = token;
-        idx++;
-
-        // Re-allocation incase the user supplies a lot of arguments.
-        if (idx >= USER_ARG_SIZE) 
-        {
-            user_arg_size += USER_ARG_SIZE;
-            tokens = realloc(tokens, user_arg_size * sizeof(char*));
-            if (!tokens) 
-            {
-                perror("Could not allocate! ");
-                exit(EXIT_FAILURE);
-            }
-        }
-        token = strtok(NULL, DELIMETERS);
-    }
-    tokens[idx] = NULL;
-
+    
+    char** tokens = editorGetArgs(line);
     return tokens;
 }
 
@@ -184,6 +165,11 @@ int execute_process(char** user_args)
     {
         if (strcmp(user_args[0], shell_commands[i]) == 0)
         {
+            /**
+             * If it's a shell command, we don't want to produce a code,
+             * so we set the child to the default code.
+             */
+            child_pid = NO_CHILD_PID;
             return (*shell_functions[i])(user_args);
         }
     }
@@ -214,9 +200,10 @@ int execute_process(char** user_args)
 
 int main(int argc, char* argv[])
 {
+    atexit(disableModes);
+
     editor_state.y = 50;
     tcgetattr(STDIN_FILENO, &orig_termios);
-    atexit(disableModes);
     write(STDOUT_FILENO, "\x1b[2J", 4);
     write(STDOUT_FILENO, "\x1b[H", 3);
 
@@ -224,7 +211,7 @@ int main(int argc, char* argv[])
     if (fp == NULL)
     {
         perror("Could not open file history.txt! ");
-        return 0;
+        return 1;
     }
  
     // Get # history lines and set it in our editor.
@@ -251,6 +238,7 @@ int main(int argc, char* argv[])
             {
                 return 1;
             }
+            free(user_args);
         }
     }
 

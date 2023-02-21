@@ -90,8 +90,10 @@ bool editorProcessKeypress(char** command, bool monitor_f)
     }
     else
     {
-        // Handle keypresses there are no processes running, or there are, but they
-        // are stopped.
+        /**
+         * Handle keypresses if there are no processes running, 
+         * or if all the processes that are running are stoped.
+         */
         switch (c)
         {
             case '\r':
@@ -238,11 +240,13 @@ void editorDeleteCharacter(char** command, bool is_del)
     }
 
     char* tmp = *command;
-    char* new_command = malloc(command_len - 1);
+    char* new_command = malloc(command_len + 1);
     strcpy(new_command, *command);
 
-    // Copy over all of the characters from the old string to the new
-    // except the one at our cursor's position.
+    /**
+     * Copy over all of the characters from the old string to the new
+     * except the one at our cursor's position.
+     */
     int pos = 0;
     while (pos != str_pos)
     {
@@ -269,8 +273,10 @@ void editorAddCharacter(char** command, int c)
     int str_pos = editor_state.x - editor_state.cwd_str_len;
     char* tmp = *command;
 
-    // Allocate enough memory for additional character. 
-    // We add two for the new 'c' character and the terminating '\0' character.
+     /**
+     * Allocate enough memory for additional character. 
+     * We add two for the new 'c' character and the terminating '\0' character.
+     */
     char* new_command = malloc(command_len + 2);
 
     int pos = 0;
@@ -319,6 +325,7 @@ void editorGetHistoryCommand(char* command, int arrow)
         editor_state.history_pos--;
     }
 
+    // Handles if we are at the last entry in history.
     if (editor_state.history_pos < 0)
     {
         editor_state.history_pos++;
@@ -328,6 +335,8 @@ void editorGetHistoryCommand(char* command, int arrow)
     if (arrow == ARROW_DOWN)
     {
         editor_state.history_pos++;
+
+        // Handles when we are at the first entry in history.
         if (editor_state.history_pos >= editor_state.history_max)
         {
             editor_state.x = strlen(editor_state.cwd) + strlen(PROMPT) + 1;
@@ -383,8 +392,6 @@ void editorGetHistoryCommand(char* command, int arrow)
     if (strcmp(command, tmp) == 0)
     {
         editorGetHistoryCommand(command, arrow);
-        free(tmp);
-        return;
     }
 
     free(tmp);
@@ -392,50 +399,130 @@ void editorGetHistoryCommand(char* command, int arrow)
     return;
 }
 
+char** editorGetArgs(char* command)
+{
+    int user_arg_size = USER_ARG_SIZE;
+    int idx = 0;
+    char* token = "";
+    char** tokens = malloc(user_arg_size * sizeof(char*));
+
+    token = strtok(command, DELIMETERS);
+    while (token != NULL)
+    {
+        tokens[idx] = token;
+        idx++;
+
+        // Re-allocation incase the user supplies a lot of arguments.
+        if (idx >= USER_ARG_SIZE) 
+        {
+            user_arg_size += USER_ARG_SIZE;
+            tokens = realloc(tokens, user_arg_size * sizeof(char*));
+            if (!tokens) 
+            {
+                perror("Could not allocate! ");
+                exit(EXIT_FAILURE);
+            }
+        }
+        token = strtok(NULL, DELIMETERS);
+    }
+    tokens[idx] = NULL;
+
+    return tokens;
+}
+
 void editorTabComplete(char** command)
 {
-    char* str;
-    char* command_sep;
-    char* last_arg;
-    char* last_file;
+    char directory_and_command[512] = "";
+    char directory_no_command[512] = "";
+    char directory[512] = "";
+    char last_arg[512] = "";
+    char other_args[512] = "";
 
-    command_sep = strdup(*command);
-    last_arg = strrchr(command_sep, ' ');
-    if (last_arg == NULL)
+    /**
+     * Gather the command args in an array, and separate
+     * the last arg from the rest since that's the one we
+     * need to complete with tab.
+     */
+
+    char** args = editorGetArgs(*command);
+    int argc = 0;
+    while (args[argc] != NULL)
     {
-        last_arg = command_sep;
+        argc++;
     }
 
-    last_file = strrchr(last_arg, '/');
-    if(last_file == NULL)
+    if (argc == 0)
     {
-        last_file = last_arg;
+        return;
     }
 
-    if (last_file[0] == ' ' || last_file[0] == '/')
+    // Get last arg.
+    strcpy(last_arg, args[argc - 1]);
+
+    // Gather the other args into a string.
+    args[--argc] = NULL;
+    for (int i = 0; i < argc; i++)
     {
-        memmove(last_file, last_file + 1, strlen(last_file));
+        strcat(other_args, args[i]);
+        strcat(other_args, " ");
     }
 
-    if (last_file[0] == '.' || last_file[1] == '/')
+    strcpy(directory, last_arg);
+    strcat(directory_and_command, last_arg);
+    strcat(directory_no_command, last_arg);
+
+    if (directory[0] == '/' || directory[1] == '/')
     {
-        memmove(last_file, last_file + 2, strlen(last_file));
+        for (int i = strlen(directory) - 1; i >= 0; i--)
+        {
+            if (directory[i] == '/')
+            {
+                directory[i + 1] = '\0';
+                directory_no_command[i + 1] = '\0';
+                break;
+            }
+        }
+    }
+    else
+    {
+        strcpy(directory_no_command, "");
+        strcpy(directory, ".");
+    }
+
+    if (strcmp(directory_no_command, directory_and_command) == 0)
+    {
+        return;
     }
 
     DIR *d;
     struct dirent *dir;
-    d = opendir(".");
+    d = opendir(directory);
     if (d) 
     {
         while ((dir = readdir(d)) != NULL)
         {
-            if (strncmp(last_file, dir->d_name, strlen(last_file)) == 0)
+            // Create a commad that just includes the last arg + the file name in the cwd.
+            char* compare_command = malloc(strlen(directory_no_command) + strlen(dir->d_name) + 1);
+            sprintf(compare_command, "%s%s", directory_no_command, dir->d_name);
+
+            // Compare and see if the characters leading up are equal, if so we've found a match.
+            if (strncmp(directory_and_command, compare_command, strlen(directory_and_command)) == 0)
             {
-                strcpy(*command, dir->d_name);
+                // Add the other args back onto the last arg.
+                char* new_command = malloc(strlen(other_args) + strlen(directory_no_command) + strlen(dir->d_name) + 1);
+                sprintf(new_command, "%s%s%s", other_args, directory_no_command, dir->d_name);
+
+                free(*command);
+                free(compare_command);
+                *command = new_command;
                 editor_state.x = strlen(editor_state.cwd) + strlen(PROMPT) + strlen(*command) + 1;
                 break;
             }
+            free(compare_command);
         }
-        closedir(d);
+        if (closedir(d) == -1)
+        {
+            perror("Could not close directory!");
+        }
     }
 }

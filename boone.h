@@ -14,15 +14,17 @@
 #include <dirent.h>
 #include "editor.h"
 
-// Shell builtin commands.
-int shell_cd(char **args);
-int shell_history(char** args);
-int shell_exit(char** args);
+#define NO_CHILD_PID -100
 
 extern pid_t child_pid;
 extern bool is_suspended;
 extern int process_ids[1024];
 extern int process_idx;
+
+// Shell builtin commands.
+int shell_cd(char **args);
+int shell_history(char** args);
+int shell_exit(char** args);
 
 // Returns size of the shell command array.
 size_t shell_commands_size(void);
