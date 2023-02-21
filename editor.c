@@ -124,11 +124,7 @@ bool editorProcessKeypress(char** command, bool monitor_f)
             case CTRL_KEY('b'):
                 if (process_idx > 0)
                 {
-                    enableMonitorMode();
-                    process_idx--;
-                    child_pid = process_ids[process_idx];
-                    kill(child_pid, SIGCONT);
-                    printf("\n[%d] %s\n", process_idx, "Program Resumed!");
+                    shell_fg(NULL);
                     break;
                 }
 
@@ -392,6 +388,8 @@ void editorGetHistoryCommand(char* command, int arrow)
     if (strcmp(command, tmp) == 0)
     {
         editorGetHistoryCommand(command, arrow);
+    free(tmp);
+        return;
     }
 
     free(tmp);
@@ -494,35 +492,112 @@ void editorTabComplete(char** command)
         return;
     }
 
+    // Get file names and file count of directory.
     DIR *d;
     struct dirent *dir;
+    char** file_names = malloc(512);
+    int filec = 0;
     d = opendir(directory);
     if (d) 
     {
         while ((dir = readdir(d)) != NULL)
         {
-            // Create a commad that just includes the last arg + the file name in the cwd.
-            char* compare_command = malloc(strlen(directory_no_command) + strlen(dir->d_name) + 1);
-            sprintf(compare_command, "%s%s", directory_no_command, dir->d_name);
+            *(file_names + filec) = dir->d_name;
+            filec++;
+        }
+        *(file_names + filec) = NULL;
+    }
+
+    if (closedir(d) == -1)
+    {
+        perror("Could not close directory!");
+    }
+
+    int chars_match = -1;
+    int len_diff = strlen(directory_and_command) - strlen(directory_no_command);
+    bool finished_matching = false;
+    bool first_search = true;
+    char matched_file[512] = "......................................................................................";
+
+    while (!finished_matching)
+    {
+        bool found_match = false;
+        for (int i = 0; i < filec; i++)
+        {
+            // Create a command that just includes the last arg + the file name in the cwd.
+            char* compare_command = malloc(strlen(directory_no_command) + strlen(*(file_names + i)) + 1);
+            sprintf(compare_command, "%s%s", directory_no_command, *(file_names + i));
 
             // Compare and see if the characters leading up are equal, if so we've found a match.
             if (strncmp(directory_and_command, compare_command, strlen(directory_and_command)) == 0)
             {
-                // Add the other args back onto the last arg.
-                char* new_command = malloc(strlen(other_args) + strlen(directory_no_command) + strlen(dir->d_name) + 1);
-                sprintf(new_command, "%s%s%s", other_args, directory_no_command, dir->d_name);
+                // Store the shorted name-length matched file for use when we add the command back together.
+                if (strlen(*(file_names + i)) < strlen(matched_file))
+                {
+                    strcpy(matched_file, *(file_names + i));
+                }
 
-                free(*command);
-                free(compare_command);
-                *command = new_command;
-                editor_state.x = strlen(editor_state.cwd) + strlen(PROMPT) + strlen(*command) + 1;
-                break;
+
+                found_match = true;
             }
             free(compare_command);
         }
-        if (closedir(d) == -1)
+
+        if (!found_match)
         {
-            perror("Could not close directory!");
+            return;
+        }
+
+        if (first_search)
+        {
+            first_search = false;
+            chars_match++;
+
+        }
+        else
+        {
+            int last_arg_size = strlen(directory_and_command) - strlen(directory_no_command);
+            if (last_arg_size == strlen(matched_file))
+            {
+                finished_matching = true;
+
+                bool found_multiple = false;
+                for (int i = 0; i < filec; i++)
+                {
+                    char* x = *(file_names + i);
+                    if (
+                        strcmp(*(file_names + i), matched_file) != 0 && 
+                        strncmp(*(file_names + i), matched_file, last_arg_size - 1) == 0 && 
+                        strlen(*(file_names + i)) == strlen(matched_file)
+                    ) 
+                    {
+                        found_multiple = true;
+                        break;
+                    }
+                }
+
+                // Add the other args back onto the last arg.
+                char* new_command = malloc(strlen(other_args) + strlen(directory_no_command) + chars_match + 1);
+                char file_name_match[512];
+                strcpy(file_name_match, matched_file);
+                sprintf(new_command, "%s%s%s", other_args, directory_no_command, file_name_match);
+                
+                if (found_multiple)
+                {
+                    new_command[strlen(new_command) - 1] = '\0';
+                }
+
+                free(*command);
+                *command = new_command;
+                editor_state.x = strlen(editor_state.cwd) + strlen(PROMPT) + strlen(*command) + 1;
+
+            }
+            else
+            {
+                char new_char = (matched_file)[chars_match + len_diff];
+                strcat(directory_and_command, &new_char);
+                chars_match++;
+            }
         }
     }
 }

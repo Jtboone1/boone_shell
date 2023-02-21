@@ -5,12 +5,13 @@ bool is_suspended = false;
 int process_ids[1024];
 int process_idx = 0;
 
-char* shell_commands[] = {"cd", "history", "exit"};
+char* shell_commands[] = {"exit", "cd", "history", "fg"};
 
 int (*shell_functions[]) (char **) = {
+    &shell_exit,
     &shell_cd,
     &shell_history,
-    &shell_exit
+    &shell_fg
 };
 
 int shell_exit(char** args)
@@ -65,6 +66,15 @@ int shell_history(char** args)
     printf("%s", "\n");
 
     return 0;
+}
+
+int shell_fg(char** args)
+{
+    enableMonitorMode();
+    process_idx--;
+    child_pid = process_ids[process_idx];
+    kill(child_pid, SIGCONT);
+    printf("\r[%d] %s\n", process_idx, "Program Resumed!");
 }
 
 size_t shell_commands_size(void) 
