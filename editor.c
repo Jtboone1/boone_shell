@@ -436,6 +436,9 @@ void editorTabComplete(char** command)
     char last_arg[512] = "";
     char other_args[512] = "";
 
+    char* command_cpy = malloc(strlen(*command) + 1);
+    strcpy(command_cpy, *command);
+
     /**
      * Gather the command args in an array, and separate
      * the last arg from the rest since that's the one we
@@ -451,6 +454,8 @@ void editorTabComplete(char** command)
 
     if (argc == 0)
     {
+        free(*command);
+        *command = command_cpy;
         return;
     }
 
@@ -489,6 +494,8 @@ void editorTabComplete(char** command)
 
     if (strcmp(directory_no_command, directory_and_command) == 0)
     {
+        free(*command);
+        *command = command_cpy;
         return;
     }
 
@@ -513,15 +520,17 @@ void editorTabComplete(char** command)
         perror("Could not close directory!");
     }
 
-    int chars_match = -1;
-    int len_diff = strlen(directory_and_command) - strlen(directory_no_command);
     bool finished_matching = false;
     bool first_search = true;
-    char matched_file[512] = "......................................................................................";
+    int minimum_matched_files = 0;
+    int chars_match = -1;
+    int len_diff = strlen(directory_and_command) - strlen(directory_no_command);
+    char largest_file[512] = "";
 
     while (!finished_matching)
     {
         bool found_match = false;
+        int matched_files = 0;
         for (int i = 0; i < filec; i++)
         {
             // Create a command that just includes the last arg + the file name in the cwd.
@@ -531,13 +540,12 @@ void editorTabComplete(char** command)
             // Compare and see if the characters leading up are equal, if so we've found a match.
             if (strncmp(directory_and_command, compare_command, strlen(directory_and_command)) == 0)
             {
-                // Store the shorted name-length matched file for use when we add the command back together.
-                if (strlen(*(file_names + i)) < strlen(matched_file))
+                if (strlen(*(file_names + i)) > strlen(largest_file))
                 {
-                    strcpy(matched_file, *(file_names + i));
+                    strcpy(largest_file, *(file_names + i));
                 }
 
-
+                matched_files++;
                 found_match = true;
             }
             free(compare_command);
@@ -545,56 +553,40 @@ void editorTabComplete(char** command)
 
         if (!found_match)
         {
+            free(*command);
+            *command = command_cpy;
             return;
         }
 
         if (first_search)
         {
             first_search = false;
+            minimum_matched_files = matched_files;
             chars_match++;
-
         }
         else
         {
-            int last_arg_size = strlen(directory_and_command) - strlen(directory_no_command);
-            if (last_arg_size == strlen(matched_file))
+            int new_len_diff = strlen(directory_and_command) - strlen(directory_no_command);
+            if (matched_files < minimum_matched_files || chars_match + len_diff == strlen(largest_file))
             {
-                finished_matching = true;
-
-                bool found_multiple = false;
-                for (int i = 0; i < filec; i++)
+                if (matched_files < minimum_matched_files)
                 {
-                    char* x = *(file_names + i);
-                    if (
-                        strcmp(*(file_names + i), matched_file) != 0 && 
-                        strncmp(*(file_names + i), matched_file, last_arg_size - 1) == 0 && 
-                        strlen(*(file_names + i)) == strlen(matched_file)
-                    ) 
-                    {
-                        found_multiple = true;
-                        break;
-                    }
+                    directory_and_command[strlen(directory_and_command) - 1] = '\0';
                 }
 
                 // Add the other args back onto the last arg.
-                char* new_command = malloc(strlen(other_args) + strlen(directory_no_command) + chars_match + 1);
-                char file_name_match[512];
-                strcpy(file_name_match, matched_file);
-                sprintf(new_command, "%s%s%s", other_args, directory_no_command, file_name_match);
-                
-                if (found_multiple)
-                {
-                    new_command[strlen(new_command) - 1] = '\0';
-                }
+                char* new_command = malloc(strlen(other_args) + strlen(directory_and_command) + 1);
+                sprintf(new_command, "%s%s", other_args, directory_and_command);
 
                 free(*command);
+                free(command_cpy);
                 *command = new_command;
                 editor_state.x = strlen(editor_state.cwd) + strlen(PROMPT) + strlen(*command) + 1;
-
+                finished_matching = true;
             }
             else
             {
-                char new_char = (matched_file)[chars_match + len_diff];
+                char new_char = (largest_file)[chars_match + len_diff];
                 strcat(directory_and_command, &new_char);
                 chars_match++;
             }
