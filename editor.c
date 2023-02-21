@@ -433,6 +433,7 @@ void editorTabComplete(char** command)
     char directory_and_command[512] = "";
     char directory_no_command[512] = "";
     char directory[512] = "";
+
     char last_arg[512] = "";
     char other_args[512] = "";
 
@@ -514,6 +515,10 @@ void editorTabComplete(char** command)
         }
         *(file_names + filec) = NULL;
     }
+    else
+    {
+        perror("Could not open directory! ");
+    }
 
     if (closedir(d) == -1)
     {
@@ -567,16 +572,22 @@ void editorTabComplete(char** command)
         else
         {
             int new_len_diff = strlen(directory_and_command) - strlen(directory_no_command);
-            if (matched_files < minimum_matched_files || chars_match + len_diff == strlen(largest_file))
+            if (matched_files < minimum_matched_files || new_len_diff == strlen(largest_file))
             {
                 if (matched_files < minimum_matched_files)
                 {
                     directory_and_command[strlen(directory_and_command) - 1] = '\0';
+                    new_len_diff--;
                 }
 
                 // Add the other args back onto the last arg.
-                char* new_command = malloc(strlen(other_args) + strlen(directory_and_command) + 1);
+                char* new_command = malloc(strlen(other_args) + strlen(directory_and_command) + 2);
                 sprintf(new_command, "%s%s", other_args, directory_and_command);
+
+                if (new_len_diff == strlen(largest_file))
+                {
+                    strcat(new_command, "/");
+                }
 
                 free(*command);
                 free(command_cpy);
