@@ -17,6 +17,7 @@ struct state
     int cwd_str_len;
     int history_pos;
     int history_max;
+    char* tab_command;
     char* cwd;
 };
 
@@ -56,7 +57,7 @@ void editorDeleteCharacter(char** command, bool is_del);
 void editorGetHistoryCommand(char* command, int arrow);
 
 // Handles the tab key which auto-completes the command str.
-void editorTabComplete(char** command);
+void editorTabComplete(char** command, bool shadow_tab);
 
 // Reads a keypress from editorReadKey and decides what to do with it.
 bool editorProcessKeypress(char** command, bool monitor_f);

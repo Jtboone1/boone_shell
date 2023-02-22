@@ -55,10 +55,18 @@ void editorRefreshScreen(char* command)
     // Set " ; " character to green.
     write(STDOUT_FILENO, "\x1b[32m", 5);
     write(STDOUT_FILENO, PROMPT, strlen(PROMPT));
-    write(STDOUT_FILENO, "\x1b[0m", 4);
 
-    // Print command.
+    // Print the auto-completed tab command.
     write(STDOUT_FILENO, "\x1b[K", 3);
+    write(STDOUT_FILENO, "\x1b[0m", 4);
+    write(STDOUT_FILENO, "\x1b[2m", 4);
+    write(STDOUT_FILENO, editor_state.tab_command, strlen(editor_state.tab_command));
+
+    // Print the command.
+    write(STDOUT_FILENO, "\x1b[0m", 4);
+    sprintf(cursor, "\x1b[%d;%luH", editor_state.y, strlen(PROMPT) + strlen(editor_state.cwd) + 1);
+    write(STDOUT_FILENO, cursor, 8);
+
     write(STDOUT_FILENO, command, strlen(command));
     sprintf(cursor, "\x1b[%d;%dH", editor_state.y, editor_state.x);
     write(STDOUT_FILENO, cursor, 8);
@@ -130,7 +138,7 @@ bool editorProcessKeypress(char** command, bool monitor_f)
 
             case CTRL_KEY('i'):
             {
-                editorTabComplete(command);
+                editorTabComplete(command, false);
                 break;
             }
 
@@ -141,6 +149,9 @@ bool editorProcessKeypress(char** command, bool monitor_f)
                 }
         }
     }
+
+    strcpy(editor_state.tab_command, *command);
+    editorTabComplete(&editor_state.tab_command, true);
     return false;
 }
 
@@ -388,7 +399,7 @@ void editorGetHistoryCommand(char* command, int arrow)
     if (strcmp(command, tmp) == 0)
     {
         editorGetHistoryCommand(command, arrow);
-    free(tmp);
+        free(tmp);
         return;
     }
 
@@ -428,7 +439,7 @@ char** editorGetArgs(char* command)
     return tokens;
 }
 
-void editorTabComplete(char** command)
+void editorTabComplete(char** command, bool shadow_tab)
 {
     char directory_and_command[512] = "";
     char directory_no_command[512] = "";
@@ -586,13 +597,37 @@ void editorTabComplete(char** command)
 
                 if (new_len_diff == strlen(largest_file))
                 {
-                    strcat(new_command, "/");
+                    d = opendir(directory);
+                    if (d) 
+                    {
+                        while ((dir = readdir(d)) != NULL)
+                        {
+                            if (strcmp(dir->d_name, largest_file) == 0 && dir->d_type == DT_DIR)
+                            {
+                                strcat(new_command, "/");
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        perror("Could not open directory! ");
+                    }
+
+                    if (closedir(d) == -1)
+                    {
+                        perror("Could not close directory!");
+                    }
                 }
 
                 free(*command);
                 free(command_cpy);
                 *command = new_command;
-                editor_state.x = strlen(editor_state.cwd) + strlen(PROMPT) + strlen(*command) + 1;
+
+                if (!shadow_tab)
+                {
+                    editor_state.x = strlen(editor_state.cwd) + strlen(PROMPT) + strlen(*command) + 1;
+                }
                 finished_matching = true;
             }
             else

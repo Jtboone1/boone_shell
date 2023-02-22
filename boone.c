@@ -88,7 +88,9 @@ char** read_user_line(void)
     int user_arg_size = USER_ARG_SIZE;
 
     char* line = malloc(1); 
+    editor_state.tab_command = malloc(1); 
     strcpy(line, "");
+    strcpy(editor_state.tab_command, "");
 
     editor_state.cwd = getcwd(NULL, 0);
     int len = strlen(editor_state.cwd) + strlen(PROMPT);
