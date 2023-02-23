@@ -58,7 +58,7 @@ void editorRefreshScreen(char* command)
 
     // Print the auto-completed tab command.
     write(STDOUT_FILENO, "\x1b[K", 3);
-    write(STDOUT_FILENO, "\x1b[0m", 4);
+    write(STDOUT_FILENO, "\x1b[36m", 5);
     write(STDOUT_FILENO, "\x1b[2m", 4);
     write(STDOUT_FILENO, editor_state.tab_command, strlen(editor_state.tab_command));
 
@@ -100,7 +100,7 @@ bool editorProcessKeypress(char** command, bool monitor_f)
     {
         /**
          * Handle keypresses if there are no processes running, 
-         * or if all the processes that are running are stoped.
+         * or if all the processes that are running have been stopped.
          */
         switch (c)
         {
@@ -447,6 +447,7 @@ void editorTabComplete(char** command, bool shadow_tab)
 
     char last_arg[512] = "";
     char other_args[512] = "";
+    bool beginning_slash = true;
 
     char* command_cpy = malloc(strlen(*command) + 1);
     strcpy(command_cpy, *command);
@@ -486,22 +487,24 @@ void editorTabComplete(char** command, bool shadow_tab)
     strcat(directory_and_command, last_arg);
     strcat(directory_no_command, last_arg);
 
-    if (directory[0] == '/' || directory[1] == '/')
+    if (directory[0] != '/' || (directory[0] != '.'))
     {
-        for (int i = strlen(directory) - 1; i >= 0; i--)
-        {
-            if (directory[i] == '/')
-            {
-                directory[i + 1] = '\0';
-                directory_no_command[i + 1] = '\0';
-                break;
-            }
-        }
+        beginning_slash = false;
+        char copy[510];
+        strcpy(copy, directory);
+        sprintf(directory, "./%s", copy);
+        sprintf(directory_no_command, "./%s", copy);
+        sprintf(directory_and_command, "./%s", copy);
     }
-    else
+
+    for (int i = strlen(directory) - 1; i >= 0; i--)
     {
-        strcpy(directory_no_command, "");
-        strcpy(directory, ".");
+        if (directory[i] == '/')
+        {
+            directory[i + 1] = '\0';
+            directory_no_command[i + 1] = '\0';
+            break;
+        }
     }
 
     if (strcmp(directory_no_command, directory_and_command) == 0)
@@ -542,10 +545,10 @@ void editorTabComplete(char** command, bool shadow_tab)
     int chars_match = -1;
     int len_diff = strlen(directory_and_command) - strlen(directory_no_command);
     char largest_file[512] = "";
+    bool found_match = false;
 
     while (!finished_matching)
     {
-        bool found_match = false;
         int matched_files = 0;
         for (int i = 0; i < filec; i++)
         {
@@ -591,7 +594,14 @@ void editorTabComplete(char** command, bool shadow_tab)
                     new_len_diff--;
                 }
 
-                // Add the other args back onto the last arg.
+                if (!beginning_slash)
+                {
+                    char* tmp = malloc(strlen(directory_and_command) - 1);
+                    sprintf(tmp, "%s", directory_and_command + 2);
+                    strcpy(directory_and_command, tmp);
+                    free(tmp);
+                }
+
                 char* new_command = malloc(strlen(other_args) + strlen(directory_and_command) + 2);
                 sprintf(new_command, "%s%s", other_args, directory_and_command);
 
@@ -622,7 +632,8 @@ void editorTabComplete(char** command, bool shadow_tab)
 
                 free(*command);
                 free(command_cpy);
-                *command = new_command;
+
+               *command = new_command;
 
                 if (!shadow_tab)
                 {
