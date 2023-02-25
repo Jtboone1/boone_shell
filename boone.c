@@ -210,7 +210,7 @@ int execute_process(char** user_args)
     return 0;
 }
 
-int main(int argc, char* argv[])
+int main(int argc, char** argv, char** envp)
 {
     atexit(disableModes);
 

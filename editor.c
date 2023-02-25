@@ -487,7 +487,7 @@ void editorTabComplete(char** command, bool shadow_tab)
     strcat(directory_and_command, last_arg);
     strcat(directory_no_command, last_arg);
 
-    if (directory[0] != '/' || (directory[0] != '.'))
+    if (directory[0] != '/' && directory[0] != '.')
     {
         beginning_slash = false;
         char copy[510];
@@ -644,7 +644,7 @@ void editorTabComplete(char** command, bool shadow_tab)
             else
             {
                 char new_char = (largest_file)[chars_match + len_diff];
-                strcat(directory_and_command, &new_char);
+                strncat(directory_and_command, &new_char, 1);
                 chars_match++;
             }
         }
