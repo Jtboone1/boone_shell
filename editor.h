@@ -56,6 +56,9 @@ void editorDeleteCharacter(char** command, bool is_del);
 // Handles the up and down arrow keys which retrieve previous command strings.
 void editorGetHistoryCommand(char* command, int arrow);
 
+// Returns an array of file names found in a given directory string. Stores file count in filec.
+char** getFileNames(int* filec, char* directory_str);
+
 // Handles the tab key which auto-completes the command str.
 void editorTabComplete(char** command, bool shadow_tab);
 

@@ -439,6 +439,35 @@ char** editorGetArgs(char* command)
     return tokens;
 }
 
+char** getFileNames(int* filec, char* directory_str)
+{
+    DIR* d;
+    struct dirent* dir;
+    char** file_names = malloc(512);
+
+    d = opendir(directory_str);
+    if (d) 
+    {
+        while ((dir = readdir(d)) != NULL)
+        {
+            *(file_names + *filec) = dir->d_name;
+            ++*filec;
+        }
+        *(file_names + *filec) = NULL;
+    }
+    else
+    {
+        perror("Could not open directory! ");
+    }
+
+    if (closedir(d) == -1)
+    {
+        perror("Could not close directory!");
+    }
+
+    return file_names;
+}
+
 void editorTabComplete(char** command, bool shadow_tab)
 {
     char directory_and_command[512] = "";
@@ -514,38 +543,42 @@ void editorTabComplete(char** command, bool shadow_tab)
         return;
     }
 
+    /**
+     * Below is the logic for auto-completing the command string.
+     * We basically just add a character to the command one at a time.
+     * If file name in our command ends up
+     * matching a lower number of files than the amount
+     * of matches we got at the beginning, then the auto-complete
+     * is done, and we're ready to alter the command.
+     */
+
     // Get file names and file count of directory.
-    DIR *d;
-    struct dirent *dir;
-    char** file_names = malloc(512);
     int filec = 0;
-    d = opendir(directory);
-    if (d) 
-    {
-        while ((dir = readdir(d)) != NULL)
-        {
-            *(file_names + filec) = dir->d_name;
-            filec++;
-        }
-        *(file_names + filec) = NULL;
-    }
-    else
-    {
-        perror("Could not open directory! ");
-    }
+    char** file_names = getFileNames(&filec, directory);
 
-    if (closedir(d) == -1)
-    {
-        perror("Could not close directory!");
-    }
-
+    /**
+     * We finish searching if the file name in our command gets as long as the longest file.
+     * Or if we get less file name matches than what we got at the start.
+     */
     bool finished_matching = false;
+
+    // We use first search on our first run to get the largest file name.
     bool first_search = true;
-    int minimum_matched_files = 0;
-    int chars_match = -1;
-    int len_diff = strlen(directory_and_command) - strlen(directory_no_command);
-    char largest_file[512] = "";
+
+    // If we don't find any matching files in the dir we can just end early.
     bool found_match = false;
+
+    /**
+     * If we ever match less files than what we find on our first search, than
+     * we've autocompleted as far as we can go.
+     */
+    int minimum_matched_files = 0;
+
+    // Number of characters we've added to our command. Starts at -1 for the first search.
+    int chars_match = -1;
+
+    int starting_len = strlen(directory_and_command) - strlen(directory_no_command);
+    char largest_file[512] = "";
 
     while (!finished_matching)
     {
@@ -585,13 +618,13 @@ void editorTabComplete(char** command, bool shadow_tab)
         }
         else
         {
-            int new_len_diff = strlen(directory_and_command) - strlen(directory_no_command);
-            if (matched_files < minimum_matched_files || new_len_diff == strlen(largest_file))
+            int new_starting_len = strlen(directory_and_command) - strlen(directory_no_command);
+            if (matched_files < minimum_matched_files || new_starting_len == strlen(largest_file))
             {
                 if (matched_files < minimum_matched_files)
                 {
                     directory_and_command[strlen(directory_and_command) - 1] = '\0';
-                    new_len_diff--;
+                    new_starting_len--;
                 }
 
                 if (!beginning_slash)
@@ -605,8 +638,11 @@ void editorTabComplete(char** command, bool shadow_tab)
                 char* new_command = malloc(strlen(other_args) + strlen(directory_and_command) + 2);
                 sprintf(new_command, "%s%s", other_args, directory_and_command);
 
-                if (new_len_diff == strlen(largest_file))
+                if (new_starting_len == strlen(largest_file))
                 {
+                    DIR* d;
+                    struct dirent* dir;
+
                     d = opendir(directory);
                     if (d) 
                     {
@@ -632,6 +668,7 @@ void editorTabComplete(char** command, bool shadow_tab)
 
                 free(*command);
                 free(command_cpy);
+                free(file_names);
 
                *command = new_command;
 
@@ -643,7 +680,7 @@ void editorTabComplete(char** command, bool shadow_tab)
             }
             else
             {
-                char new_char = (largest_file)[chars_match + len_diff];
+                char new_char = (largest_file)[chars_match + starting_len];
                 strncat(directory_and_command, &new_char, 1);
                 chars_match++;
             }
