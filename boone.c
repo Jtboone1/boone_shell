@@ -222,7 +222,7 @@ int main(int argc, char** argv, char** envp)
     getcwd(program_wd, sizeof(program_wd));
     strcat(program_wd, "/history.txt");
 
-    FILE* fp = fopen(program_wd, "w");
+    FILE* fp = fopen(program_wd, "a+");
     if (fp == NULL)
     {
         perror("Could not create / open file history.txt at beginning! ");

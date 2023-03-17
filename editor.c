@@ -2,6 +2,7 @@
 
 struct termios orig_termios;
 struct state editor_state;
+bool first_prompt = true;
 
 void enableRawMode(void)
 {
@@ -47,6 +48,12 @@ void editorRefreshScreen(char* command)
 
     // Write the CWD, prompt characters, and user command.
     write(STDOUT_FILENO, cursor, 8);
+
+    if (first_prompt)
+    {
+        first_prompt = false;
+        write(STDERR_FILENO, "A simple shell written by Jarrod Boone!\n\r", 41);
+    }
 
     // Set CWD to cyan.
     write(STDOUT_FILENO, "\x1b[36m", 5);
