@@ -20,6 +20,7 @@ extern pid_t child_pid;
 extern bool is_suspended;
 extern int process_ids[1024];
 extern int process_idx;
+extern char program_wd[256];
 
 // Shell builtin commands.
 int shell_exit(char** args);

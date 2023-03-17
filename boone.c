@@ -4,6 +4,7 @@ pid_t child_pid = NO_CHILD_PID;
 bool is_suspended = false;
 int process_ids[1024];
 int process_idx = 0;
+char program_wd[256] = "";
 
 char* shell_commands[] = {"exit", "cd", "history", "fg"};
 
@@ -47,7 +48,7 @@ int shell_cd(char **args)
 
 int shell_history(char** args)
 {
-    FILE* file = fopen("/history.txt", "r");
+    FILE* file = fopen(program_wd, "r");
     if (file == NULL)
     {
         perror("Could not open history file! ");
@@ -151,7 +152,7 @@ char** read_user_line(void)
         return NULL;
     }
 
-    fd = fopen("/history.txt", "a+");
+    fd = fopen(program_wd, "a+");
     if (fd == NULL)
     {
         perror("Could not open file! ");
@@ -218,11 +219,13 @@ int main(int argc, char** argv, char** envp)
     tcgetattr(STDIN_FILENO, &orig_termios);
     write(STDOUT_FILENO, "\x1b[2J", 4);
     write(STDOUT_FILENO, "\x1b[H", 3);
+    getcwd(program_wd, sizeof(program_wd));
+    strcat(program_wd, "/history.txt");
 
-    FILE* fp = fopen("/history.txt", "r+");
+    FILE* fp = fopen(program_wd, "w");
     if (fp == NULL)
     {
-        perror("Could not open file history.txt! ");
+        perror("Could not create / open file history.txt at beginning! ");
         return 1;
     }
  

@@ -360,7 +360,7 @@ void editorGetHistoryCommand(char* command, int arrow)
     char* tmp = malloc(256);
     strcpy(tmp, command);
 
-    FILE* file = fopen("/history.txt", "r");
+    FILE* file = fopen(program_wd, "r");
     if (file == NULL)
     {
         // Return state back to what it was before the file opens.
@@ -457,12 +457,12 @@ char** getFileNames(int* filec, char* directory_str)
     }
     else
     {
-        perror("Could not open directory! ");
+        return NULL;
     }
 
     if (closedir(d) == -1)
     {
-        perror("Could not close directory!");
+        return NULL;
     }
 
     return file_names;
@@ -555,6 +555,10 @@ void editorTabComplete(char** command, bool shadow_tab)
     // Get file names and file count of directory.
     int filec = 0;
     char** file_names = getFileNames(&filec, directory);
+    if (file_names == NULL)
+    {
+        return;
+    }
 
     /**
      * We finish searching if the file name in our command gets as long as the longest file.
